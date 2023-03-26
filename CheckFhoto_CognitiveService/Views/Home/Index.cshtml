@@ -1,0 +1,50 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+    <link rel="stylesheet" href="~/css/Index.css" />
+
+<div class="text-center">
+    <h1 class="display-4">Upload the Image</h1>
+    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+
+
+
+    <div class="index-grid">
+        <div class="flex-md-row">
+            <form asp-action="UploadImage" enctype="multipart/form-data" method="post">
+                <p>Download the image</p>
+                <input type="file" name="image" required />
+                <br />
+                <button type="submit" class="btn btn-outline-warning">Save</button>
+            </form>
+        </div>
+
+        <div>
+            @if (ViewBag.images != null)
+            {
+                foreach (var image in ViewBag.images)
+                {
+                    <form asp-action="CheckPhoto" method="POST" asp-route-id="@image.Id">
+                    <p>
+                        <a href="@image.Path" target="_blank" >@image.Name</a>
+                        <button type="submit">Check</button>
+                    </p>
+                    </form>
+
+                    @*<p>
+                        <a href="@image.Path" target="_blank">@image.Name</a>
+                    </p>*@
+
+                }
+            }
+            <p>@ViewBag.IsAdultContent</p>
+            <p>@ViewBag.IsRacyContent</p>
+            <p>@ViewBag.RacyScore</p>
+        </div>
+
+
+
+    </div>
+
+
+</div>
