@@ -1,0 +1,18 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+}
+@model IEnumerable<Picture>
+
+
+<div class="text-center">
+    <h1 class="display-4">Uploaded  Images</h1>
+
+    <img src="@ViewBag.Link" width="30%" alt="AdultContent">
+
+@foreach (Picture item in (Model as List<Picture>))
+{
+    <img src="@item.Path" width="50%" />
+}
+</div>

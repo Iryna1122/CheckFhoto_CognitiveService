@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
+using System.Drawing.Imaging;
 
 namespace CheckFhoto_CognitiveService.Controllers
 {
@@ -13,8 +14,12 @@ namespace CheckFhoto_CognitiveService.Controllers
     {
        
         public static string  endPoint = "https://myoliinykcognservice.cognitiveservices.azure.com/";
-
         public static string key = "9d7fca2694bb4aa1993d04f50cea6184";
+        private static string path = "home";
+       
+        ClassService classService=new ClassService();
+
+        public AppContextt context;
 
 
         ComputerVisionClient computerVisionClient = new ComputerVisionClient(new ApiKeyServiceClientCredentials(key))
@@ -22,7 +27,7 @@ namespace CheckFhoto_CognitiveService.Controllers
             Endpoint = endPoint
         };
 
-        public AppContextt context { get; set; }
+
         public ComputerVisionClient ComputerVisionClient { get => computerVisionClient; set => computerVisionClient = value; }
 
         public HomeController(AppContextt applicationContext)
@@ -33,9 +38,11 @@ namespace CheckFhoto_CognitiveService.Controllers
 
         public async Task<IActionResult> Index()
         {
-            //await AzureService.TryCreateBlobContainer("home");
+           // await ClassService.TryCreateBlobContainer(path);
+           // ViewBag.images= await ClassService.GetFile();
 
-            var images = context.Pictures.AsNoTracking().ToList();
+
+            var images = context.Pictures.ToList();
 
             ViewBag.images = images;
 
@@ -43,56 +50,79 @@ namespace CheckFhoto_CognitiveService.Controllers
             return View();
         }
 
-        public async Task<IActionResult>CheckPhoto(int id)
+        [HttpPost]
+        public async Task<IActionResult> SearchImage(string searchString)
         {
-          Picture pic=  context.Pictures.Where(p => p.Id == id).FirstOrDefault();
-            
-            string picPath = pic.Path;
-
-
-            if (picPath != null)
+            List<Picture> images = new List<Picture>();
+            List<Picture> dbImages = context.Pictures.ToList();
+            foreach (Picture item in dbImages)
             {
-                List<VisualFeatureTypes?> features = Enum.GetValues(typeof(VisualFeatureTypes)).OfType<VisualFeatureTypes?>().ToList(); //колекція характеристик за якими можна аналізувати зображення
-
-                //List<VisualFeatureTypes?> features = new List<VisualFeatureTypes?>() { VisualFeatureTypes.Tags };
-
-                ImageAnalysis imageAnalysis = await computerVisionClient.AnalyzeImageAsync(picPath, features);
-
-                ViewBag.IsAdultContent=imageAnalysis.Adult.IsAdultContent;
-                ViewBag.IsRacyContent = imageAnalysis.Adult.IsRacyContent;
-               ViewBag.RacyScore=imageAnalysis.Adult.RacyScore;
+                if (item.Description!.ToLower().Contains(searchString))
+                {
+                    images.Add(item);
+                }
             }
-            return RedirectToAction("Index");
+            if (images.Count > 0)
+            {
+                ViewBag.Imgs = images.ToList();
+            }
+            return View("Myphotos", images);
         }
 
 
-
+        [HttpPost]
         public async Task<IActionResult> UploadImageAsync(IFormFile? image)
         {
-            string? extension = Path.GetExtension(image?.FileName);
+            
+                string folderPath = $@"{Directory.GetCurrentDirectory()}\wwwroot\img";
+                Directory.CreateDirectory(folderPath);
+                string filePath = Path.Combine(folderPath, image.FileName);
 
-            string[] exs = { ".jpg", ".bmp", ".jpeg", ".jfif", ".webp" };
+                using (FileStream fs = new FileStream(filePath, FileMode.OpenOrCreate))
+                {
+                    image.CopyTo(fs);
+                }
 
-            if (Array.IndexOf(exs, extension) == -1)
-            {
+                await classService.AddImage(filePath);
+                string imageLink = await classService.UploadFile(image);
+                ViewBag.Link = imageLink;
+
+               
+            //Check Photo On Vision
+                List<VisualFeatureTypes?> featureTypes = Enum.GetValues(typeof(VisualFeatureTypes)).OfType<VisualFeatureTypes?>().ToList();
+
+                ImageAnalysis analysis = await computerVisionClient.AnalyzeImageAsync(imageLink, featureTypes);
+
+                if (analysis.Adult.IsAdultContent)
+                {
+                    ViewBag.Link = "./img/prohibited.jpg";
+
+                }
+                string imgTitle = "";
+                foreach (var item in analysis.Categories)
+                {
+                    imgTitle += item.Name;
+                    foreach (var subitem in analysis.Brands)
+                    {
+                        imgTitle += subitem.Name;
+                    }
+                }
+                //count++;
+                Picture temp = new Picture();
+
+                temp.Id = Guid.NewGuid().ToString();
+                temp.Name = image.FileName;
+                temp.Description = imgTitle;
+                temp.Path = imageLink;
+                context.Add(temp);
+                context.SaveChanges();
+
                 return View("Index");
-            }
-
-            var currentImage = context.Pictures.FirstOrDefault(i => i.Name.Equals(image.FileName));
-
-            if (currentImage != null)
-            {
-                return RedirectToAction("Index");
-            }
-
-            await ClassService.UploadFile(image!);
-
-            await context.AddImage(image!);
-
-            await ClassService.DownloadFile(image!.FileName);
-
-            return RedirectToAction("Index");
+            
         }
+
+
+
         public IActionResult Privacy()
         {
             return View();
